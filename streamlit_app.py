@@ -487,50 +487,41 @@ with st.sidebar:
         "ROI Margin (%)", 60, 100, int(ss.params["roi_scale"] * 100)
     ) / 100
 
-    if st.button("⚡ Auto Detect", use_container_width=True, type="primary"):
+    _in_cell = ss.zoomed_cell is not None and ss.current_name
+    _detect_label = "⚡ Detect in cell" if _in_cell else "⚡ Auto Detect"
+    if st.button(_detect_label, use_container_width=True, type="primary"):
         if ss.current_name:
-            with st.spinner("Finding plate…"):
-                gray = bytes_to_gray(ss.file_data[ss.current_name])
-                ss.plate = dict(zip(("cx", "cy", "cr"), auto_detect_plate(gray)))
-            with st.spinner("Detecting worms…"):
-                ss.worms = detect_worms(
-                    gray, ss.plate["cx"], ss.plate["cy"], ss.plate["cr"], ss.params
-                )
-                ss.auto_count = len(ss.worms)
-            st.rerun()
-
-    # Detect within zoomed cell only
-    if ss.zoomed_cell is not None and ss.current_name:
-        if st.button("⚡ Detect in cell", use_container_width=True,
-                     help="Run detection only inside the current zoomed cell"):
-            gc, gr = ss.zoomed_cell
             gray = bytes_to_gray(ss.file_data[ss.current_name])
-            h, w = gray.shape
-            x0 = int(gc * w / ss.grid_size)
-            y0 = int(gr * h / ss.grid_size)
-            x1 = min(w, int((gc + 1) * w / ss.grid_size))
-            y1 = min(h, int((gr + 1) * h / ss.grid_size))
-            with st.spinner("Detecting in cell…"):
-                cell_gray = gray[y0:y1, x0:x1]
-                # Run detection on the cell crop with adjusted plate coords
-                cx_cell = ss.plate["cx"] - x0
-                cy_cell = ss.plate["cy"] - y0
-                cell_worms = detect_worms(
-                    cell_gray, cx_cell, cy_cell, ss.plate["cr"], ss.params
-                )
-                # Translate back to original image coords and merge
-                new_worms = [
-                    {"x_orig": w["x_orig"] + x0, "y_orig": w["y_orig"] + y0,
-                     "area": w["area"], "manual": False}
-                    for w in cell_worms
-                ]
-                # Remove existing auto-worms in this cell, keep manual + other cells
-                keep = [
-                    w for w in ss.worms
-                    if not (x0 <= w["x_orig"] < x1 and y0 <= w["y_orig"] < y1
-                            and not w.get("manual"))
-                ]
-                ss.worms = keep + new_worms
+            if _in_cell:
+                gc, gr = ss.zoomed_cell
+                ih, iw = gray.shape
+                x0 = int(gc * iw / ss.grid_size)
+                y0 = int(gr * ih / ss.grid_size)
+                x1 = min(iw, int((gc + 1) * iw / ss.grid_size))
+                y1 = min(ih, int((gr + 1) * ih / ss.grid_size))
+                with st.spinner("Detecting in cell…"):
+                    cell_worms = detect_worms(
+                        gray[y0:y1, x0:x1],
+                        ss.plate["cx"] - x0, ss.plate["cy"] - y0,
+                        ss.plate["cr"], ss.params,
+                    )
+                    new_worms = [
+                        {"x_orig": w["x_orig"] + x0, "y_orig": w["y_orig"] + y0,
+                         "area": w["area"], "manual": False}
+                        for w in cell_worms
+                    ]
+                    keep = [w for w in ss.worms
+                            if not (x0 <= w["x_orig"] < x1 and y0 <= w["y_orig"] < y1
+                                    and not w.get("manual"))]
+                    ss.worms = keep + new_worms
+            else:
+                with st.spinner("Finding plate…"):
+                    ss.plate = dict(zip(("cx", "cy", "cr"), auto_detect_plate(gray)))
+                with st.spinner("Detecting worms…"):
+                    ss.worms = detect_worms(
+                        gray, ss.plate["cx"], ss.plate["cy"], ss.plate["cr"], ss.params
+                    )
+                    ss.auto_count = len(ss.worms)
             st.rerun()
 
     st.divider()
