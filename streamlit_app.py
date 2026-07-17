@@ -499,6 +499,40 @@ with st.sidebar:
                 ss.auto_count = len(ss.worms)
             st.rerun()
 
+    # Detect within zoomed cell only
+    if ss.zoomed_cell is not None and ss.current_name:
+        if st.button("⚡ Detect in cell", use_container_width=True,
+                     help="Run detection only inside the current zoomed cell"):
+            gc, gr = ss.zoomed_cell
+            gray = bytes_to_gray(ss.file_data[ss.current_name])
+            h, w = gray.shape
+            x0 = int(gc * w / ss.grid_size)
+            y0 = int(gr * h / ss.grid_size)
+            x1 = min(w, int((gc + 1) * w / ss.grid_size))
+            y1 = min(h, int((gr + 1) * h / ss.grid_size))
+            with st.spinner("Detecting in cell…"):
+                cell_gray = gray[y0:y1, x0:x1]
+                # Run detection on the cell crop with adjusted plate coords
+                cx_cell = ss.plate["cx"] - x0
+                cy_cell = ss.plate["cy"] - y0
+                cell_worms = detect_worms(
+                    cell_gray, cx_cell, cy_cell, ss.plate["cr"], ss.params
+                )
+                # Translate back to original image coords and merge
+                new_worms = [
+                    {"x_orig": w["x_orig"] + x0, "y_orig": w["y_orig"] + y0,
+                     "area": w["area"], "manual": False}
+                    for w in cell_worms
+                ]
+                # Remove existing auto-worms in this cell, keep manual + other cells
+                keep = [
+                    w for w in ss.worms
+                    if not (x0 <= w["x_orig"] < x1 and y0 <= w["y_orig"] < y1
+                            and not w.get("manual"))
+                ]
+                ss.worms = keep + new_worms
+            st.rerun()
+
     st.divider()
 
     # ── Plate ROI ────────────────────────────────────────────────────────────
@@ -539,21 +573,6 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Zoom ─────────────────────────────────────────────────────────────────
-    st.markdown('<div class="sec-label">Zoom</div>', unsafe_allow_html=True)
-    z1, z2 = st.columns([4, 1])
-    with z1:
-        ss.zoom_pct = st.slider("Zoom", 25, 300, int(ss.zoom_pct), step=25,
-                                label_visibility="collapsed")
-    with z2:
-        st.markdown(f"<div style='padding-top:8px;font-size:0.85rem'>{ss.zoom_pct}%</div>",
-                    unsafe_allow_html=True)
-        if ss.zoom_pct != 100:
-            if st.button("↺", help="Reset zoom to 100%"):
-                ss.zoom_pct = 100; st.rerun()
-
-    st.divider()
-
     # ── Grid ─────────────────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Grid</div>', unsafe_allow_html=True)
     g1, g2 = st.columns(2)
@@ -565,7 +584,7 @@ with st.sidebar:
                 ss.marked_cells = set()
                 st.rerun()
     if ss.show_grid:
-        ss.grid_size = st.slider("Grid size", 2, 12, int(ss.grid_size),
+        ss.grid_size = st.slider("Grid size", 2, 30, int(ss.grid_size),
                                  help="Number of rows and columns")
         st.caption(f"{ss.grid_size}×{ss.grid_size} grid · {len(ss.marked_cells)} cell(s) marked")
         gz1, gz2 = st.columns(2)
@@ -701,16 +720,6 @@ if not ss.current_name:
 
     st.stop()
 
-# ── Cell zoom banner ─────────────────────────────────────────────────────────
-if ss.zoomed_cell is not None:
-    gc, gr = ss.zoomed_cell
-    _zc1, _zc2 = st.columns([5, 1])
-    with _zc1:
-        st.info(f"🔍 Zoomed into cell ({gc + 1}, {gr + 1}) of {ss.grid_size}×{ss.grid_size} grid — Add/Remove work here normally.", icon=None)
-    with _zc2:
-        if st.button("↩ Full view", use_container_width=True, type="primary"):
-            ss.zoomed_cell = None; ss.cell_offset = (0, 0); st.rerun()
-
 # ── Hint when image loaded but not yet detected ───────────────────────────────
 if ss.current_name and ss.auto_count == 0 and not ss.worms:
     st.info("Image loaded. Click **⚡ Auto Detect** in the sidebar to find worms, or click the image to add markers manually.", icon="💡")
@@ -726,7 +735,7 @@ if n_manual > 0 and n_auto > 0:
 elif n_manual > 0:
     badge_sub = f'<span class="count-sub">{n_manual} manual</span>'
 
-col_badge, col_modes = st.columns([1.4, 5])
+col_badge, col_modes, col_zoom = st.columns([1.4, 5, 1.8])
 with col_badge:
     st.markdown(
         f'<div class="count-badge">'
@@ -761,15 +770,11 @@ with col_modes:
             ss.zoomed_cell = None
             st.rerun()
     with m6:
-        if ss.zoomed_cell is not None:
-            if st.button("↩ Full", use_container_width=True, type="primary"):
-                ss.zoomed_cell = None; ss.cell_offset = (0, 0); st.rerun()
-        else:
-            if st.button("☑ Mark", use_container_width=True,
-                         type="primary" if ss.mode == "grid-mark" else "secondary",
-                         help="Click a grid cell to mark it as counted",
-                         disabled=not ss.show_grid):
-                ss.mode = "grid-mark"; st.rerun()
+        if st.button("☑ Mark", use_container_width=True,
+                     type="primary" if ss.mode == "grid-mark" else "secondary",
+                     help="Click a grid cell to mark it as counted",
+                     disabled=not ss.show_grid):
+            ss.mode = "grid-mark"; st.rerun()
     with m7:
         idx = (ss.file_names.index(ss.current_name)
                if ss.current_name in ss.file_names else 0)
@@ -782,6 +787,31 @@ with col_modes:
     with m9:
         st.caption(f"{idx + 1} / {len(ss.file_names)}")
 
+# ── Zoom controls / Return from cell zoom (top-right) ────────────────────────
+with col_zoom:
+    if ss.zoomed_cell is not None:
+        gc, gr = ss.zoomed_cell
+        st.markdown(
+            f"<div style='font-size:0.72rem;color:#6B7280;margin-bottom:2px'>"
+            f"Cell ({gc+1},{gr+1}) of {ss.grid_size}×{ss.grid_size}</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("↩ Full view", use_container_width=True, type="primary"):
+            ss.zoomed_cell = None; ss.cell_offset = (0, 0); st.rerun()
+    else:
+        st.markdown("<div style='font-size:0.72rem;color:#6B7280;margin-bottom:2px'>Zoom</div>",
+                    unsafe_allow_html=True)
+        za, zb, zc = st.columns([1, 1.4, 1])
+        with za:
+            if st.button("−", use_container_width=True, disabled=ss.zoom_pct <= 25):
+                ss.zoom_pct = max(25, ss.zoom_pct - 25); st.rerun()
+        with zb:
+            if st.button(f"{ss.zoom_pct}%", use_container_width=True, help="Reset to 100%"):
+                ss.zoom_pct = 100; st.rerun()
+        with zc:
+            if st.button("＋", use_container_width=True, disabled=ss.zoom_pct >= 300):
+                ss.zoom_pct = min(300, ss.zoom_pct + 25); st.rerun()
+
 # Mode hint
 _hints = {
     "view":      ("👁 View mode — click to add worms",              "mode-view"),
@@ -790,7 +820,12 @@ _hints = {
     "grid-mark": ("☑ Mark Cell — click a cell to toggle it as counted", "mode-add"),
     "zoom-cell": ("🔍 Zoom Cell — click a grid cell to zoom into it",   "mode-view"),
 }
-_hint_text, _hint_cls = _hints.get(ss.mode, ("", "mode-view"))
+if ss.zoomed_cell is not None:
+    gc, gr = ss.zoomed_cell
+    _hint_text = f"🔍 Zoomed into cell ({gc+1},{gr+1}) — Add/Remove work normally here"
+    _hint_cls = "mode-view"
+else:
+    _hint_text, _hint_cls = _hints.get(ss.mode, ("", "mode-view"))
 st.markdown(
     f'<span class="mode-pill {_hint_cls}">{_hint_text}</span>',
     unsafe_allow_html=True,
