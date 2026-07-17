@@ -1,0 +1,14 @@
+[theme]
+# Nature journal color palette (CMYK → RGB)
+# True Blue  C=100 M=38 Y=0 K=8
+primaryColor          = "#0092EB"
+backgroundColor       = "#FFFFFF"
+secondaryBackgroundColor = "#F0F5FA"
+textColor             = "#1A2B3C"
+font                  = "sans serif"
+
+[server]
+maxUploadSize = 400   # MB — allow large TIF stacks
+
+[browser]
+gatherUsageStats = false

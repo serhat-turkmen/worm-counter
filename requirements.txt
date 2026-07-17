@@ -1,0 +1,18 @@
+# Worm Counter — Python dependencies
+# Works for:
+#   - Streamlit Community Cloud (web version)
+#   - Local pip install (both Flask and Streamlit versions)
+#   - PyInstaller builds (use: pip install -r requirements.txt before building)
+
+# Core image processing
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Streamlit web version
+streamlit>=1.33.0
+streamlit-image-coordinates>=0.4.0
+
+# Flask local/desktop version
+flask>=3.0.0
+flask-cors>=4.0.0

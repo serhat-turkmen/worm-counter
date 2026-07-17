@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Worm Counter</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f0f2f5;
+    color: #1f2937;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Folder bar ── */
+  .folder-bar {
+    background: #e8ecf1;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #d1d5db;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+  }
+  .folder-bar label { color: #6b7280; white-space: nowrap; }
+  .folder-path {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.8rem;
+    font-family: monospace;
+  }
+  .folder-path:focus { outline: none; border-color: #0092EB; color: #111; }
+  .btn-folder { background: #0092EB; color: white; padding: 4px 10px; font-size: 0.78rem; }
+  .folder-count { color: #2E9E18; white-space: nowrap; font-size: 0.78rem; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #0E5881 0%, #0092EB 100%);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-bottom: 1px solid #006BB5;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
+  header h1 { font-size: 1.2rem; color: #ffffff; letter-spacing: 1px; }
+  .count-badge {
+    background: #0E5881;
+    color: white;
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 1rem;
+    font-weight: bold;
+    min-width: 80px;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .header-btns { display: flex; gap: 8px; margin-left: auto; }
+  button {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: opacity 0.15s;
+  }
+  button:hover { opacity: 0.82; }
+  .btn-primary { background: #e5e7eb; color: #374151; }
+  .btn-detect { background: #0092EB; color: white; }
+  .btn-add { background: #2E9E18; color: white; }
+  .btn-remove { background: #D05A00; color: white; }
+  .btn-remove-area { background: #C50000; color: white; }
+  .btn-detect-area { background: #6649D0; color: white; }
+  .btn-remove-all { background: #8B0000; color: white; }
+  .btn-export { background: #29A3CC; color: white; }
+  .btn-active { box-shadow: 0 0 0 2px #0092EB; }
+
+  /* ── Main layout ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 240px;
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .sidebar-section {
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .sidebar-section h3 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #9ca3af;
+    margin-bottom: 8px;
+  }
+  .file-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .file-item {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #6b7280;
+  }
+  .file-item:hover { background: #eff6ff; color: #006BB5; }
+  .file-item.active {
+    background: #eff6ff;
+    border-left-color: #0092EB;
+    color: #006BB5;
+  }
+  .file-item.has-result { color: #2E9E18; }
+  .file-item.has-result.active { border-left-color: #2E9E18; }
+
+  /* ── Settings panel ── */
+  .settings {
+    width: 220px;
+    background: #ffffff;
+    border-left: 1px solid #e5e7eb;
+    padding: 12px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .settings h3 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #9ca3af;
+    margin-bottom: 12px;
+  }
+  .setting-group { margin-bottom: 14px; }
+  .setting-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    margin-bottom: 4px;
+    color: #374151;
+  }
+  .setting-value {
+    color: #0092EB;
+    font-weight: bold;
+    min-width: 40px;
+    text-align: right;
+  }
+  input[type=range] {
+    width: 100%;
+    accent-color: #0092EB;
+    height: 4px;
+  }
+  input[type=number] {
+    width: 100%;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    color: #111827;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.82rem;
+  }
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+
+  .roi-inputs { display: flex; gap: 6px; }
+  .roi-inputs label { font-size: 0.72rem; color: #9ca3af; display: block; margin-bottom: 2px; }
+  .roi-inputs input { width: 100%; }
+
+  .results-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; margin-top: 8px; }
+  .results-table th {
+    background: #f3f4f6;
+    padding: 4px 6px;
+    text-align: left;
+    font-size: 0.68rem;
+    color: #6b7280;
+  }
+  .results-table td { padding: 3px 6px; border-bottom: 1px solid #e5e7eb; color: #374151; }
+  .results-table tr:hover td { background: #eff6ff; }
+
+  /* ── Canvas area ── */
+  .canvas-wrap {
+    flex: 1;
+    overflow: auto;
+    background: #cbd5e1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 16px;
+  }
+  #canvas-container {
+    position: relative;
+    display: inline-block;
+    cursor: crosshair;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  #img-canvas { display: block; }
+  #overlay-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+  #interact-canvas {
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  /* ── Mode indicator ── */
+  .mode-indicator {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: #e5e7eb;
+    color: #6b7280;
+    white-space: nowrap;
+  }
+  .mode-indicator.mode-add { background: #dcfce7; color: #2E9E18; }
+  .mode-indicator.mode-remove { background: #ffedd5; color: #D05A00; }
+  .mode-indicator.mode-remove-area { background: #fee2e2; color: #C50000; }
+  .mode-indicator.mode-detect-area { background: #ede9fe; color: #6649D0; }
+  .mode-indicator.mode-roi { background: #dbeafe; color: #006BB5; }
+  .mode-indicator.mode-grid-mark { background: #dcfce7; color: #1F7B12; }
+
+  /* ── Tooltip ── */
+  #tooltip {
+    position: fixed;
+    background: rgba(17,24,39,0.9);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    pointer-events: none;
+    display: none;
+    z-index: 999;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #e5e7eb; }
+  ::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 3px; }
+
+  .notes-input {
+    width: 100%;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    color: #111827;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.82rem;
+    resize: none;
+    height: 48px;
+  }
+
+  .loading {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.97);
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 20px 40px;
+    font-size: 1rem;
+    color: #374151;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid #0092EB;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Active mode button ring */
+  .btn-mode-active {
+    box-shadow: 0 0 0 2px white, 0 0 0 4px rgba(0,0,0,0.65) !important;
+    filter: brightness(1.12);
+  }
+
+  /* Unsaved-changes dot on Save button */
+  .dirty-dot {
+    display: inline-block; width: 8px; height: 8px;
+    background: #f59e0b; border-radius: 50%;
+    margin-left: 5px; vertical-align: middle;
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+  /* Count badge sub-line */
+  #count-detail { font-size: 0.62rem; font-weight: normal; opacity: 0.85; margin-top: 1px; }
+
+  /* Help modal overlay */
+  .help-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+  }
+  .help-box {
+    background: #fff; border-radius: 10px; padding: 24px 32px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.22); min-width: 320px;
+    font-size: 0.85rem; color: #1f2937;
+  }
+  .help-box h2 { font-size: 1rem; margin-bottom: 14px; color: #0092EB; }
+  .help-row { display: flex; justify-content: space-between; gap: 20px;
+              padding: 3px 0; border-bottom: 1px solid #f3f4f6; }
+  .help-key { font-family: monospace; background: #f3f4f6; padding: 1px 6px;
+              border-radius: 3px; font-size: 0.78rem; white-space: nowrap; }
+  .help-close { margin-top: 16px; width: 100%; }
+</style>
+</head>
+<body>
+
+<div id="tooltip"></div>
+<div class="loading" id="loading"><span class="spinner"></span> Processing...</div>
+
+<!-- Folder selector bar -->
+<div class="folder-bar">
+  <label>📁 Folder:</label>
+  <input type="text" class="folder-path" id="folder-path" placeholder="/path/to/images"
+         onkeydown="if(event.key==='Enter') setFolderFromInput()">
+  <button class="btn-folder" onclick="browseFolder()" title="Open folder picker">Browse…</button>
+  <button class="btn-folder" onclick="setFolderFromInput()" title="Apply typed path" style="background:#2ecc71;color:#111">Apply</button>
+  <span class="folder-count" id="folder-count"></span>
+</div>
+
+<header>
+  <h1>🔬 Worm Counter</h1>
+  <div class="count-badge" id="count-badge">
+    <div id="count-total">— worms</div>
+    <div id="count-detail"></div>
+  </div>
+  <span class="mode-indicator" id="mode-indicator">Left=Add · Right=Remove</span>
+  <div class="header-btns">
+    <button class="btn-detect" onclick="runDetection()">⚡ Auto Detect</button>
+    <button id="btn-mode-detect-area" class="btn-detect-area" onclick="setMode('detect-area')" title="Draw a box to detect worms only in that area (W)">⚡ Detect Area</button>
+    <button id="btn-mode-add" class="btn-add" onclick="setMode('add')" title="Add worm on click (A)">+ Add Worm</button>
+    <button id="btn-mode-remove" class="btn-remove" onclick="setMode('remove')" title="Remove worm on click (R)">✕ Remove</button>
+    <button id="btn-mode-remove-area" class="btn-remove-area" onclick="setMode('remove-area')" title="Draw a box to remove all worms inside it (E)">▭ Remove Area</button>
+    <button class="btn-remove-all" onclick="removeAll()" title="Remove all worm markers">✕ Remove All</button>
+    <button id="btn-mode-roi" class="btn-primary" onclick="setMode('roi')" title="Adjust plate ROI circle (O)">⊙ Adjust ROI</button>
+    <button id="btn-mode-view" class="btn-primary" onclick="setMode('view')" title="View / default mode (V or Esc)">👁 View</button>
+    <button class="btn-primary" id="btn-toggle-markers" onclick="toggleMarkers()" title="Toggle marker visibility (H)">👁 Hide Marks</button>
+    <button class="btn-primary" id="btn-toggle-grid" onclick="toggleGrid()" title="Show/hide counting grid (G)" style="opacity:0.6">⊞ Show Grid</button>
+    <button id="btn-mode-grid-mark" class="btn-add" style="background:#1F7B12" onclick="setMode('grid-mark')" title="Click grid cells to mark as counted (C)">☑ Mark Cells</button>
+    <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="btn-primary" onclick="showHelp()" title="Keyboard shortcuts (?)" style="font-weight:bold;min-width:32px">?</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- File list -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Images (<span id="img-count">0</span>)</h3>
+    </div>
+    <div style="display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid #e5e7eb;flex-shrink:0">
+      <button class="btn-primary" style="flex:1;font-size:0.72rem;padding:3px 0"
+              onclick="navigateImage(-1)" title="Previous image (← or ↑)">◀ Prev</button>
+      <button class="btn-primary" style="flex:1;font-size:0.72rem;padding:3px 0"
+              onclick="navigateImage(1)" title="Next image (→ or ↓)">Next ▶</button>
+    </div>
+    <div class="file-list" id="file-list"></div>
+  </div>
+
+  <!-- Canvas area -->
+  <div class="canvas-wrap" id="canvas-wrap">
+    <div id="canvas-container">
+      <canvas id="img-canvas"></canvas>
+      <canvas id="overlay-canvas"></canvas>
+      <canvas id="interact-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings">
+    <h3>Detection Settings</h3>
+
+    <div class="setting-group">
+      <div class="setting-label">
+        <span>BG Blur Kernel</span>
+        <span class="setting-value" id="val-blur">51</span>
+      </div>
+      <input type="range" id="blur-kernel" min="11" max="151" step="2" value="51"
+             oninput="document.getElementById('val-blur').textContent=this.value">
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">
+        <span>Detection Threshold</span>
+        <span class="setting-value" id="val-thresh">15</span>
+      </div>
+      <input type="range" id="threshold" min="3" max="60" step="1" value="15"
+             oninput="document.getElementById('val-thresh').textContent=this.value">
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">
+        <span>Min Worm Area (px²)</span>
+        <span class="setting-value" id="val-min-area">30</span>
+      </div>
+      <input type="range" id="min-area" min="5" max="500" step="5" value="30"
+             oninput="document.getElementById('val-min-area').textContent=this.value">
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">
+        <span>Max Worm Area (px²)</span>
+        <span class="setting-value" id="val-max-area">4000</span>
+      </div>
+      <input type="range" id="max-area" min="200" max="20000" step="100" value="4000"
+             oninput="document.getElementById('val-max-area').textContent=this.value">
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">
+        <span>ROI Margin (%)</span>
+        <span class="setting-value" id="val-roi-scale">90</span>
+      </div>
+      <input type="range" id="roi-scale" min="60" max="100" step="1" value="90"
+             oninput="document.getElementById('val-roi-scale').textContent=this.value">
+    </div>
+
+    <hr class="divider">
+    <h3>Grid Settings</h3>
+    <div class="setting-group">
+      <div class="setting-label">
+        <span>Grid Size</span>
+        <span class="setting-value" id="val-grid-size">5×5</span>
+      </div>
+      <input type="range" id="grid-size" min="2" max="10" step="1" value="5"
+             oninput="state.gridSize=parseInt(this.value); document.getElementById('val-grid-size').textContent=this.value+'×'+this.value; if(state.showGrid) drawOverlay();">
+    </div>
+
+    <hr class="divider">
+    <h3>Plate ROI (original coords)</h3>
+    <div class="roi-inputs">
+      <div>
+        <label>CX</label>
+        <input type="number" id="roi-cx" placeholder="cx">
+      </div>
+      <div>
+        <label>CY</label>
+        <input type="number" id="roi-cy" placeholder="cy">
+      </div>
+      <div>
+        <label>R</label>
+        <input type="number" id="roi-cr" placeholder="r">
+      </div>
+    </div>
+    <br>
+    <button class="btn-primary" style="width:100%" onclick="applyROI()">Apply ROI</button>
+
+    <hr class="divider">
+    <h3>Notes</h3>
+    <textarea class="notes-input" id="notes" placeholder="Optional notes..."></textarea>
+    <br><br>
+    <button class="btn-primary" style="width:100%" onclick="saveCurrentResult()">💾 Save Result<span id="dirty-dot" class="dirty-dot" style="display:none"></span></button>
+    <br><br>
+    <button class="btn-export" style="width:100%" onclick="saveImageWithMarks()" title="Download image with markers drawn on it (I)">🖼 Save Image with Marks</button>
+
+    <hr class="divider">
+    <h3>Improve Detection</h3>
+    <button id="btn-tune" class="btn-detect" style="width:100%;margin-bottom:8px"
+            onclick="tuneParams()" title="Find best detection parameters from your corrected counts">
+      🔧 Tune Parameters
+    </button>
+    <button class="btn-export" style="width:100%"
+            onclick="exportYOLO()" title="Export YOLO annotations for deep learning training">
+      📦 Export YOLO Labels
+    </button>
+
+    <hr class="divider">
+    <h3>Saved Results (<span id="saved-count">0</span>)</h3>
+    <table class="results-table" id="results-table">
+      <thead><tr><th>File</th><th>Auto</th><th>Final</th></tr></thead>
+      <tbody id="results-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div class="help-modal" id="help-modal" style="display:none" onclick="if(event.target===this)closeHelp()">
+  <div class="help-box">
+    <h2>⌨ Keyboard Shortcuts</h2>
+    <div class="help-row"><span>Add Worm mode</span><span class="help-key">A</span></div>
+    <div class="help-row"><span>Remove mode</span><span class="help-key">R</span></div>
+    <div class="help-row"><span>Remove Area mode</span><span class="help-key">E</span></div>
+    <div class="help-row"><span>Detect Area mode</span><span class="help-key">W</span></div>
+    <div class="help-row"><span>View / default mode</span><span class="help-key">V / Esc</span></div>
+    <div class="help-row"><span>Adjust ROI mode</span><span class="help-key">O</span></div>
+    <div class="help-row"><span>Mark Grid Cells mode</span><span class="help-key">C</span></div>
+    <div class="help-row"><span>Run Auto Detect</span><span class="help-key">D</span></div>
+    <div class="help-row"><span>Save Result</span><span class="help-key">S</span></div>
+    <div class="help-row"><span>Toggle markers</span><span class="help-key">H</span></div>
+    <div class="help-row"><span>Toggle grid</span><span class="help-key">G</span></div>
+    <div class="help-row"><span>Save image with marks</span><span class="help-key">I</span></div>
+    <div class="help-row"><span>Previous image</span><span class="help-key">← / ↑</span></div>
+    <div class="help-row"><span>Next image</span><span class="help-key">→ / ↓</span></div>
+    <div class="help-row"><span>Right-click on marker</span><span>Remove that worm</span></div>
+    <button class="btn-primary help-close" onclick="closeHelp()">Close</button>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const state = {
+  images: [],
+  currentFile: null,
+  dispW: 0, dispH: 0,
+  origW: 0, origH: 0,
+  scale: 1,   // orig → display scale
+  plate: { cx: 0, cy: 0, cr: 0 },  // original coords
+  worms: [],  // display coords [{x, y, x_orig, y_orig, area, manual}]
+  autoCount: 0,
+  mode: 'view',  // view | add | remove | remove-area | detect-area | roi
+  roiDrag: null, // {type: 'center'|'radius', startX, startY, origCx, origCy, origCr}
+  selBox: null,  // {x0, y0, x1, y1} — live selection rectangle
+  savedResults: {},  // filename → {autoCount, correctedCount, notes, worms}
+  showMarkers: true,  // toggle marker visibility
+  showGrid: false,    // toggle grid overlay
+  gridSize: 5,        // grid columns (and rows) — e.g. 5 = 5×5
+  markedCells: new Set(),  // 'row-col' keys for cells marked as counted
+  detecting: false,        // guard against concurrent detection requests
+  dirty: false,            // unsaved changes flag
+};
+
+// ─── Canvas refs ─────────────────────────────────────────────────────────────
+const imgCanvas = document.getElementById('img-canvas');
+const overlayCanvas = document.getElementById('overlay-canvas');
+const interactCanvas = document.getElementById('interact-canvas');
+const imgCtx = imgCanvas.getContext('2d');
+const overlayCtx = overlayCanvas.getContext('2d');
+const interactCtx = interactCanvas.getContext('2d');
+
+// ─── Folder management ────────────────────────────────────────────────────────
+async function loadFolder(folderData) {
+  document.getElementById('folder-path').value = folderData.folder;
+  document.getElementById('folder-count').textContent =
+    `${folderData.image_count} image${folderData.image_count !== 1 ? 's' : ''}`;
+  state.images = await (await fetch('/api/images')).json();
+  state.savedResults = {};
+  state.currentFile = null;
+  state.worms = [];
+  updateCountBadge();
+  renderFileList();
+  updateResultsTable();
+  document.getElementById('saved-count').textContent = '0';
+  // Clear canvas
+  [imgCtx, overlayCtx, interactCtx].forEach(ctx =>
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height));
+  if (state.images.length > 0) loadImage(state.images[0]);
+}
+
+async function browseFolder() {
+  showLoading(true);
+  try {
+    const resp = await fetch('/api/folder/browse', { method: 'POST' });
+    const data = await resp.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    if (!data.cancelled) await loadFolder(data);
+  } catch (err) {
+    alert('Folder browse failed: ' + err.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function setFolderFromInput() {
+  const path = document.getElementById('folder-path').value.trim();
+  if (!path) return;
+  showLoading(true);
+  const resp = await fetch('/api/folder/set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  });
+  const data = await resp.json();
+  showLoading(false);
+  if (data.error) { alert(data.error); return; }
+  await loadFolder(data);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  const folderResp = await fetch('/api/folder');
+  const folderData = await folderResp.json();
+  await loadFolder(folderData);
+}
+
+function renderFileList() {
+  const el = document.getElementById('file-list');
+  document.getElementById('img-count').textContent = state.images.length;
+  el.innerHTML = '';
+  state.images.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'file-item' + (f === state.currentFile ? ' active' : '') +
+      (state.savedResults[f] ? ' has-result' : '');
+    div.textContent = f;
+    div.title = f;
+    div.onclick = () => loadImage(f);
+    el.appendChild(div);
+  });
+  // Auto-scroll active item into view
+  requestAnimationFrame(() => {
+    const active = el.querySelector('.file-item.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+// ─── Load image ───────────────────────────────────────────────────────────────
+async function loadImage(filename) {
+  showLoading(true);
+  state.currentFile = filename;
+  state.worms = [];
+  state.autoCount = 0;
+  state.markedCells = new Set();
+  setDirty(false);
+  updateCountBadge();
+  renderFileList();
+
+  const resp = await fetch(`/api/image/${encodeURIComponent(filename)}`);
+  const data = await resp.json();
+  if (data.error) { alert(data.error); showLoading(false); return; }
+
+  state.dispW = data.disp_w;
+  state.dispH = data.disp_h;
+  state.origW = data.orig_w;
+  state.origH = data.orig_h;
+  state.scale = data.scale;
+  state.plate = { ...data.plate };
+
+  // Set canvas sizes
+  [imgCanvas, overlayCanvas, interactCanvas].forEach(c => {
+    c.width = state.dispW;
+    c.height = state.dispH;
+  });
+
+  // Draw image
+  const img = new Image();
+  img.onload = () => {
+    imgCtx.drawImage(img, 0, 0);
+    // Populate ROI inputs
+    document.getElementById('roi-cx').value = state.plate.cx;
+    document.getElementById('roi-cy').value = state.plate.cy;
+    document.getElementById('roi-cr').value = state.plate.cr;
+    drawOverlay();
+    const saved = state.savedResults[filename];
+    if (saved) {
+      // Restore saved worms (convert orig coords back to display coords)
+      state.worms = saved.worms.map(w => ({
+        ...w,
+        x: Math.round(w.x * state.scale),
+        y: Math.round(w.y * state.scale),
+        x_orig: w.x,
+        y_orig: w.y,
+      }));
+      state.autoCount = saved.auto_count;
+      // Restore per-image params if saved
+      if (saved.params) {
+        const p = saved.params;
+        document.getElementById('blur-kernel').value = p.blur_kernel;
+        document.getElementById('val-blur').textContent = p.blur_kernel;
+        document.getElementById('threshold').value = p.threshold;
+        document.getElementById('val-thresh').textContent = p.threshold;
+        document.getElementById('min-area').value = p.min_area;
+        document.getElementById('val-min-area').textContent = p.min_area;
+        document.getElementById('max-area').value = p.max_area;
+        document.getElementById('val-max-area').textContent = p.max_area;
+        document.getElementById('roi-scale').value = p.roi_scale;
+        document.getElementById('val-roi-scale').textContent = p.roi_scale;
+      }
+      updateCountBadge();
+      drawOverlay();
+      showLoading(false);
+    } else {
+      // New image — run auto detection (autoLoad=true so it doesn't set dirty)
+      runDetection(true);
+    }
+  };
+  img.src = 'data:image/jpeg;base64,' + data.image_b64;
+}
+
+// ─── Detection ────────────────────────────────────────────────────────────────
+async function runDetection(autoLoad = false) {
+  if (!state.currentFile || state.detecting) return;
+  state.detecting = true;
+  showLoading(true);
+
+  const params = {
+    filename: state.currentFile,
+    cx: state.plate.cx,
+    cy: state.plate.cy,
+    cr: state.plate.cr,
+    roi_scale: parseInt(document.getElementById('roi-scale').value) / 100,
+    blur_kernel: parseInt(document.getElementById('blur-kernel').value),
+    threshold: parseInt(document.getElementById('threshold').value),
+    min_area: parseFloat(document.getElementById('min-area').value),
+    max_area: parseFloat(document.getElementById('max-area').value),
+  };
+
+  try {
+    const resp = await fetch('/api/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); return; }
+    state.worms = data.worms.map(w => ({ ...w, manual: false }));
+    state.autoCount = data.count;
+    if (!autoLoad) setDirty(true);
+    updateCountBadge();
+    drawOverlay();
+  } catch (err) {
+    alert('Detection failed: ' + err.message);
+  } finally {
+    state.detecting = false;
+    showLoading(false);
+  }
+}
+
+async function runDetectionInArea(x0, y0, x1, y1) {
+  // x0,y0,x1,y1 are display coords — convert to original
+  const s = state.scale;
+  const ox = Math.round(Math.min(x0, x1) / s);
+  const oy = Math.round(Math.min(y0, y1) / s);
+  const ow = Math.round(Math.abs(x1 - x0) / s);
+  const oh = Math.round(Math.abs(y1 - y0) / s);
+  if (ow < 5 || oh < 5) return;
+
+  showLoading(true);
+  const params = {
+    filename: state.currentFile,
+    cx: state.plate.cx, cy: state.plate.cy, cr: state.plate.cr,
+    roi_scale: parseInt(document.getElementById('roi-scale').value) / 100,
+    blur_kernel: parseInt(document.getElementById('blur-kernel').value),
+    threshold: parseInt(document.getElementById('threshold').value),
+    min_area: parseFloat(document.getElementById('min-area').value),
+    max_area: parseFloat(document.getElementById('max-area').value),
+    bbox: [ox, oy, ow, oh],
+  };
+  const resp = await fetch('/api/detect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params)
+  });
+  const data = await resp.json();
+  showLoading(false);
+  if (data.error) { alert(data.error); return; }
+
+  // Remove existing auto-detections inside the box, keep manual and outside
+  const bx0 = Math.min(x0, x1), bx1 = Math.max(x0, x1);
+  const by0 = Math.min(y0, y1), by1 = Math.max(y0, y1);
+  state.worms = state.worms.filter(w =>
+    w.manual || w.x < bx0 || w.x > bx1 || w.y < by0 || w.y > by1
+  );
+  // Add newly detected worms
+  data.worms.forEach(w => state.worms.push({ ...w, manual: false }));
+  setDirty(true);
+  updateCountBadge();
+  drawOverlay();
+}
+
+function toggleMarkers() {
+  state.showMarkers = !state.showMarkers;
+  const btn = document.getElementById('btn-toggle-markers');
+  btn.textContent = state.showMarkers ? '👁 Hide Marks' : '👁 Show Marks';
+  btn.style.opacity = state.showMarkers ? '1' : '0.5';
+  drawOverlay();
+}
+
+function toggleGrid() {
+  state.showGrid = !state.showGrid;
+  const btn = document.getElementById('btn-toggle-grid');
+  btn.textContent = state.showGrid ? '⊞ Hide Grid' : '⊞ Show Grid';
+  btn.style.opacity = state.showGrid ? '1' : '0.6';
+  drawOverlay();
+}
+
+function removeAll() {
+  if (!state.worms.length) return;
+  if (!confirm(`Remove all ${state.worms.length} worm markers?`)) return;
+  state.worms = [];
+  setDirty(true);
+  updateCountBadge();
+  drawOverlay();
+}
+
+// ─── Drawing ─────────────────────────────────────────────────────────────────
+function drawOverlay() {
+  overlayCtx.clearRect(0, 0, state.dispW, state.dispH);
+  if (!state.currentFile) return;
+
+  const { cx, cy, cr } = state.plate;
+  const s = state.scale;
+  const roiScale = parseInt(document.getElementById('roi-scale').value) / 100;
+  const dispCx = cx * s, dispCy = cy * s, dispCr = cr * s;
+  const dispMaskR = dispCr * roiScale;
+
+  // Draw ROI circle
+  overlayCtx.beginPath();
+  overlayCtx.arc(dispCx, dispCy, dispMaskR, 0, Math.PI * 2);
+  overlayCtx.strokeStyle = 'rgba(0, 200, 100, 0.9)';
+  overlayCtx.lineWidth = 2;
+  overlayCtx.setLineDash([8, 4]);
+  overlayCtx.stroke();
+  overlayCtx.setLineDash([]);
+
+  // Plate circle (dim)
+  overlayCtx.beginPath();
+  overlayCtx.arc(dispCx, dispCy, dispCr, 0, Math.PI * 2);
+  overlayCtx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
+  overlayCtx.lineWidth = 1.5;
+  overlayCtx.stroke();
+
+  // Draw worms
+  if (state.showMarkers) {
+    state.worms.forEach(w => {
+      const color = w.manual ? 'rgba(241,196,15,0.95)' : 'rgba(233,69,96,0.9)';
+      const arm = 7;  // crosshair half-length
+
+      // Crosshair lines
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(w.x - arm, w.y);
+      overlayCtx.lineTo(w.x + arm, w.y);
+      overlayCtx.moveTo(w.x, w.y - arm);
+      overlayCtx.lineTo(w.x, w.y + arm);
+      overlayCtx.strokeStyle = color;
+      overlayCtx.lineWidth = 1.5;
+      overlayCtx.stroke();
+
+      // Center dot (2px)
+      overlayCtx.beginPath();
+      overlayCtx.arc(w.x, w.y, 2, 0, Math.PI * 2);
+      overlayCtx.fillStyle = color;
+      overlayCtx.fill();
+    });
+  }
+
+  // Live selection rectangle
+  if (state.selBox) {
+    const { x0, y0, x1, y1 } = state.selBox;
+    const rx = Math.min(x0, x1), ry = Math.min(y0, y1);
+    const rw = Math.abs(x1 - x0), rh = Math.abs(y1 - y0);
+    const isRemove = state.mode === 'remove-area';
+    overlayCtx.strokeStyle = isRemove ? '#e74c3c' : '#9b59b6';
+    overlayCtx.fillStyle   = isRemove ? 'rgba(231,76,60,0.12)' : 'rgba(155,89,182,0.12)';
+    overlayCtx.lineWidth = 2;
+    overlayCtx.setLineDash([6, 3]);
+    overlayCtx.fillRect(rx, ry, rw, rh);
+    overlayCtx.strokeRect(rx, ry, rw, rh);
+    overlayCtx.setLineDash([]);
+
+    // Label
+    overlayCtx.fillStyle = isRemove ? '#e74c3c' : '#9b59b6';
+    overlayCtx.font = '12px sans-serif';
+    overlayCtx.fillText(isRemove ? 'Remove area' : 'Detect area', rx + 4, ry - 4);
+  }
+
+  // Draw grid overlay (full canvas — no clipping)
+  if (state.showGrid) {
+    const cols = state.gridSize;
+    const rows = state.gridSize;
+    const left = dispCx - dispMaskR;
+    const top  = dispCy - dispMaskR;
+    const size = dispMaskR * 2;
+    const cellW = size / cols;
+    const cellH = size / rows;
+
+    // Green overlay for marked (counted) cells
+    state.markedCells.forEach(key => {
+      const [r, c] = key.split('-').map(Number);
+      overlayCtx.fillStyle = 'rgba(34, 197, 94, 0.22)';
+      overlayCtx.fillRect(left + c * cellW, top + r * cellH, cellW, cellH);
+    });
+
+    // Grid lines — extend to full canvas edges
+    // Draw twice: dark shadow first, then white on top → visible on any background
+    const lineCoords = [];
+    for (let i = 1; i < cols; i++) lineCoords.push([left + i*cellW, 0, left + i*cellW, state.dispH]);
+    for (let j = 1; j < rows; j++) lineCoords.push([0, top + j*cellH, state.dispW, top + j*cellH]);
+
+    overlayCtx.setLineDash([6, 4]);
+    // Pass 1 — dark shadow (wider)
+    overlayCtx.strokeStyle = 'rgba(0,0,0,0.5)';
+    overlayCtx.lineWidth = 2.5;
+    lineCoords.forEach(([x1,y1,x2,y2]) => {
+      overlayCtx.beginPath(); overlayCtx.moveTo(x1,y1); overlayCtx.lineTo(x2,y2); overlayCtx.stroke();
+    });
+    // Pass 2 — white on top (thinner)
+    overlayCtx.strokeStyle = 'rgba(255,255,255,0.75)';
+    overlayCtx.lineWidth = 1;
+    lineCoords.forEach(([x1,y1,x2,y2]) => {
+      overlayCtx.beginPath(); overlayCtx.moveTo(x1,y1); overlayCtx.lineTo(x2,y2); overlayCtx.stroke();
+    });
+    overlayCtx.setLineDash([]);
+
+    // Cell labels (A1, A2 …) — green + checkmark when marked
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const fontSize = Math.min(14, Math.max(9, Math.round(Math.min(cellW, cellH) * 0.05)));
+    overlayCtx.font = `bold ${fontSize}px monospace`;
+    overlayCtx.textAlign = 'left';
+    overlayCtx.textBaseline = 'top';
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cellX = left + col * cellW;
+        const cellY = top  + row * cellH;
+        const done  = state.markedCells.has(`${row}-${col}`);
+        const label = (done ? '✓ ' : '') + letters[row] + (col + 1);
+        overlayCtx.fillStyle = 'rgba(0,0,0,0.55)';
+        overlayCtx.fillText(label, cellX + 5, cellY + 5);
+        overlayCtx.fillStyle = done ? 'rgba(34,197,94,0.95)' : 'rgba(255,230,100,0.85)';
+        overlayCtx.fillText(label, cellX + 4, cellY + 4);
+      }
+    }
+  }
+
+  // ROI mode handles
+  if (state.mode === 'roi') {
+    // Center handle
+    overlayCtx.beginPath();
+    overlayCtx.arc(dispCx, dispCy, 8, 0, Math.PI * 2);
+    overlayCtx.fillStyle = 'rgba(52, 152, 219, 0.7)';
+    overlayCtx.fill();
+    overlayCtx.strokeStyle = '#3498db';
+    overlayCtx.lineWidth = 2;
+    overlayCtx.stroke();
+
+    // Radius handle (right side)
+    overlayCtx.beginPath();
+    overlayCtx.arc(dispCx + dispMaskR, dispCy, 8, 0, Math.PI * 2);
+    overlayCtx.fillStyle = 'rgba(52, 152, 219, 0.7)';
+    overlayCtx.fill();
+    overlayCtx.strokeStyle = '#3498db';
+    overlayCtx.lineWidth = 2;
+    overlayCtx.stroke();
+  }
+}
+
+function updateCountBadge() {
+  const count = state.worms.length;
+  const manual = state.worms.filter(w => w.manual).length;
+  const autoCt = count - manual;
+  document.getElementById('count-total').textContent = `${count} worm${count !== 1 ? 's' : ''}`;
+  const detail = document.getElementById('count-detail');
+  if (manual > 0 && autoCt > 0) detail.textContent = `${autoCt} auto · ${manual} manual`;
+  else if (manual > 0) detail.textContent = `${manual} manual`;
+  else detail.textContent = '';
+}
+
+// ─── Interaction ──────────────────────────────────────────────────────────────
+function setMode(mode) {
+  // Auto-enable grid when entering grid-mark mode
+  if (mode === 'grid-mark' && !state.showGrid) toggleGrid();
+
+  state.mode = mode;
+  state.selBox = null;
+  const ind = document.getElementById('mode-indicator');
+  const modes = {
+    view: 'Left=Add · Right=Remove',
+    add: 'Left=Add · Right=Remove',
+    remove: '✕ Remove  ·  Right=Remove',
+    'remove-area': '▭ Remove Area — drag to select',
+    'detect-area': '⚡ Detect Area — drag to select',
+    roi: '⊙ Adjust ROI mode',
+    'grid-mark': '☑ Click cell to mark as counted · click again to unmark · Esc to exit',
+  };
+  ind.textContent = modes[mode] || mode;
+  ind.className = 'mode-indicator' + (mode === 'view' ? '' : ` mode-${mode}`);
+
+  const cursors = { view: 'crosshair', add: 'crosshair', remove: 'not-allowed',
+    'remove-area': 'crosshair', 'detect-area': 'crosshair', roi: 'move',
+    'grid-mark': 'pointer' };
+  interactCanvas.style.cursor = cursors[mode] || 'default';
+  updateModeButtons();
+  drawOverlay();
+}
+
+function updateModeButtons() {
+  ['detect-area', 'add', 'remove', 'remove-area', 'roi', 'view', 'grid-mark'].forEach(m => {
+    const btn = document.getElementById(`btn-mode-${m}`);
+    if (btn) btn.classList.remove('btn-mode-active');
+  });
+  const active = document.getElementById(`btn-mode-${state.mode}`);
+  if (active) active.classList.add('btn-mode-active');
+}
+
+function setDirty(val = true) {
+  state.dirty = val;
+  const dot = document.getElementById('dirty-dot');
+  if (dot) dot.style.display = val ? 'inline-block' : 'none';
+}
+
+function navigateImage(delta) {
+  if (state.detecting) return;
+  const idx = state.images.indexOf(state.currentFile);
+  const newIdx = idx + delta;
+  if (newIdx >= 0 && newIdx < state.images.length) loadImage(state.images[newIdx]);
+}
+
+function showHelp() {
+  document.getElementById('help-modal').style.display = 'flex';
+}
+function closeHelp() {
+  document.getElementById('help-modal').style.display = 'none';
+}
+
+function canvasCoords(e) {
+  const rect = interactCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (interactCanvas.width / rect.width),
+    y: (e.clientY - rect.top) * (interactCanvas.height / rect.height)
+  };
+}
+
+function hitTestWorm(x, y, radius = 12) {
+  for (let i = state.worms.length - 1; i >= 0; i--) {
+    const w = state.worms[i];
+    const dx = w.x - x, dy = w.y - y;
+    if (Math.sqrt(dx * dx + dy * dy) <= radius) return i;
+  }
+  return -1;
+}
+
+interactCanvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return; // only handle left click here; right-click via contextmenu
+  const { x, y } = canvasCoords(e);
+  const s = state.scale;
+  const roiScale = parseInt(document.getElementById('roi-scale').value) / 100;
+
+  // Grid-mark mode: click toggles a cell as counted
+  if (state.mode === 'grid-mark' && state.showGrid) {
+    const dispCx = state.plate.cx * s, dispCy = state.plate.cy * s;
+    const dispMaskR = state.plate.cr * s * roiScale;
+    const left  = dispCx - dispMaskR;
+    const top_g = dispCy - dispMaskR;
+    const cellW = (dispMaskR * 2) / state.gridSize;
+    const cellH = (dispMaskR * 2) / state.gridSize;
+    const col = Math.floor((x - left)  / cellW);
+    const row = Math.floor((y - top_g) / cellH);
+    if (col >= 0 && col < state.gridSize && row >= 0 && row < state.gridSize) {
+      const key = `${row}-${col}`;
+      if (state.markedCells.has(key)) state.markedCells.delete(key);
+      else state.markedCells.add(key);
+      drawOverlay();
+    }
+    return;
+  }
+
+  if (state.mode === 'roi') {
+    const dispCx = state.plate.cx * s, dispCy = state.plate.cy * s;
+    const dispMaskR = state.plate.cr * s * roiScale;
+
+    // Check center handle
+    if (Math.hypot(x - dispCx, y - dispCy) < 14) {
+      state.roiDrag = { type: 'center', startX: x, startY: y,
+        origCx: state.plate.cx, origCy: state.plate.cy };
+      return;
+    }
+    // Check radius handle
+    if (Math.hypot(x - (dispCx + dispMaskR), y - dispCy) < 14) {
+      state.roiDrag = { type: 'radius', startX: x, startY: y,
+        origCr: state.plate.cr };
+      return;
+    }
+    // Drag circle
+    state.roiDrag = { type: 'center', startX: x, startY: y,
+      origCx: state.plate.cx, origCy: state.plate.cy };
+    return;
+  }
+
+  if (state.mode === 'remove-area' || state.mode === 'detect-area') {
+    state.selBox = { x0: x, y0: y, x1: x, y1: y };
+    return;
+  }
+
+  // Remove mode: left click removes
+  if (state.mode === 'remove') {
+    const idx = hitTestWorm(x, y);
+    if (idx >= 0) {
+      state.worms.splice(idx, 1);
+      setDirty(true);
+      updateCountBadge();
+      drawOverlay();
+    }
+    return;
+  }
+
+  // View or Add mode: left click adds a worm
+  if (state.mode === 'view' || state.mode === 'add') {
+    const xOrig = Math.round(x / s), yOrig = Math.round(y / s);
+    state.worms.push({ x, y, x_orig: xOrig, y_orig: yOrig, area: 0, manual: true });
+    setDirty(true);
+    updateCountBadge();
+    drawOverlay();
+    return;
+  }
+});
+
+interactCanvas.addEventListener('mousemove', e => {
+  const { x, y } = canvasCoords(e);
+  const s = state.scale;
+
+  // Tooltip for worm
+  const idx = hitTestWorm(x, y, 10);
+  const tip = document.getElementById('tooltip');
+  if (idx >= 0 && state.mode !== 'roi') {
+    const w = state.worms[idx];
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX + 12) + 'px';
+    tip.style.top = (e.clientY - 24) + 'px';
+    tip.textContent = w.manual ? 'Manual worm' : `Area: ${w.area.toFixed(0)}px²`;
+  } else {
+    tip.style.display = 'none';
+  }
+
+  // Update live selection box
+  if (state.selBox) {
+    state.selBox.x1 = x;
+    state.selBox.y1 = y;
+    drawOverlay();
+    return;
+  }
+
+  if (!state.roiDrag) return;
+  const d = state.roiDrag;
+
+  if (d.type === 'center') {
+    const dx = (x - d.startX) / s;
+    const dy = (y - d.startY) / s;
+    state.plate.cx = Math.round(d.origCx + dx);
+    state.plate.cy = Math.round(d.origCy + dy);
+    document.getElementById('roi-cx').value = state.plate.cx;
+    document.getElementById('roi-cy').value = state.plate.cy;
+  } else if (d.type === 'radius') {
+    const dx = (x - d.startX) / s;
+    state.plate.cr = Math.max(50, Math.round(d.origCr + dx));
+    document.getElementById('roi-cr').value = state.plate.cr;
+  }
+  drawOverlay();
+});
+
+interactCanvas.addEventListener('mouseup', e => {
+  state.roiDrag = null;
+  if (state.selBox) {
+    const { x0, y0, x1, y1 } = state.selBox;
+    state.selBox = null;
+    const mode = state.mode;
+    if (mode === 'remove-area') {
+      const bx0 = Math.min(x0, x1), bx1 = Math.max(x0, x1);
+      const by0 = Math.min(y0, y1), by1 = Math.max(y0, y1);
+      const before = state.worms.length;
+      state.worms = state.worms.filter(w => w.x < bx0 || w.x > bx1 || w.y < by0 || w.y > by1);
+      if (state.worms.length !== before) setDirty(true);
+      updateCountBadge();
+      drawOverlay();
+    } else if (mode === 'detect-area') {
+      runDetectionInArea(x0, y0, x1, y1);
+    }
+  }
+});
+interactCanvas.addEventListener('mouseleave', () => {
+  state.roiDrag = null;
+  state.selBox = null;
+  document.getElementById('tooltip').style.display = 'none';
+  drawOverlay();
+});
+
+// Right-click = remove (convenience)
+interactCanvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const { x, y } = canvasCoords(e);
+  const idx = hitTestWorm(x, y);
+  if (idx >= 0) {
+    state.worms.splice(idx, 1);
+    setDirty(true);
+    updateCountBadge();
+    drawOverlay();
+  }
+});
+
+// ─── ROI inputs ───────────────────────────────────────────────────────────────
+function applyROI() {
+  state.plate.cx = parseInt(document.getElementById('roi-cx').value) || state.plate.cx;
+  state.plate.cy = parseInt(document.getElementById('roi-cy').value) || state.plate.cy;
+  state.plate.cr = parseInt(document.getElementById('roi-cr').value) || state.plate.cr;
+  drawOverlay();
+}
+
+// ─── Save result ──────────────────────────────────────────────────────────────
+function saveCurrentResult() {
+  if (!state.currentFile) return;
+  const notes = document.getElementById('notes').value;
+  state.savedResults[state.currentFile] = {
+    filename: state.currentFile,
+    auto_count: state.autoCount,
+    corrected_count: state.worms.length,
+    notes: notes,
+    worms: state.worms.map(w => ({ x: w.x_orig || Math.round(w.x / state.scale), y: w.y_orig || Math.round(w.y / state.scale), area: w.area, manual: w.manual })),
+    params: {
+      blur_kernel: parseInt(document.getElementById('blur-kernel').value),
+      threshold:   parseInt(document.getElementById('threshold').value),
+      min_area:    parseFloat(document.getElementById('min-area').value),
+      max_area:    parseFloat(document.getElementById('max-area').value),
+      roi_scale:   parseInt(document.getElementById('roi-scale').value),
+    }
+  };
+  renderFileList();
+  updateResultsTable();
+  // Flash feedback
+  const btn = document.querySelector('button[onclick="saveCurrentResult()"]');
+  btn.textContent = '✓ Saved!';
+  setTimeout(() => btn.textContent = '💾 Save Result', 1500);
+  document.getElementById('saved-count').textContent = Object.keys(state.savedResults).length;
+  setDirty(false);
+}
+
+function updateResultsTable() {
+  const tbody = document.getElementById('results-tbody');
+  tbody.innerHTML = '';
+  Object.values(state.savedResults).forEach(r => {
+    const tr = document.createElement('tr');
+    const shortName = r.filename.length > 20 ? '…' + r.filename.slice(-18) : r.filename;
+    tr.innerHTML = `<td title="${r.filename}">${shortName}</td><td>${r.auto_count}</td><td>${r.corrected_count}</td>`;
+    tr.onclick = () => loadImage(r.filename);
+    tr.style.cursor = 'pointer';
+    tbody.appendChild(tr);
+  });
+}
+
+// ─── Save image with marks ────────────────────────────────────────────────────
+function saveImageWithMarks() {
+  if (!state.currentFile) return;
+
+  // Composite: image layer + overlay (markers + ROI circles)
+  const composite = document.createElement('canvas');
+  composite.width  = state.dispW;
+  composite.height = state.dispH;
+  const ctx = composite.getContext('2d');
+  ctx.drawImage(imgCanvas,     0, 0);
+  ctx.drawImage(overlayCanvas, 0, 0);
+
+  // Add a small legend in the corner
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(4, state.dispH - 38, 220, 34);
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = 'rgba(233,69,96,0.95)';
+  ctx.fillText('+ Auto-detected', 12, state.dispH - 21);
+  ctx.fillStyle = 'rgba(241,196,15,0.95)';
+  ctx.fillText('+ Manual', 130, state.dispH - 21);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`Total: ${state.worms.length}`, 12, state.dispH - 7);
+
+  composite.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = state.currentFile.replace(/\.[^.]+$/, '') + '_counted.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+
+// ─── Tune parameters ─────────────────────────────────────────────────────────
+async function tuneParams() {
+  const results = Object.values(state.savedResults);
+  if (results.length === 0) {
+    alert('No saved results yet.\nCorrect and save at least one image first.');
+    return;
+  }
+  showLoading(true);
+  const btn = document.getElementById('btn-tune');
+  btn.textContent = '⏳ Tuning…';
+  btn.disabled = true;
+
+  const resp = await fetch('/api/tune', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      results: results.map(r => ({ filename: r.filename, corrected_count: r.corrected_count })),
+      roi_scale:   parseInt(document.getElementById('roi-scale').value) / 100,
+      blur_kernel: parseInt(document.getElementById('blur-kernel').value),
+    })
+  });
+  const data = await resp.json();
+  showLoading(false);
+  btn.textContent = '🔧 Tune Parameters';
+  btn.disabled = false;
+
+  if (data.error) { alert('Tuning error: ' + data.error); return; }
+
+  const p = data.params;
+  document.getElementById('threshold').value   = p.threshold;
+  document.getElementById('val-thresh').textContent = p.threshold;
+  document.getElementById('min-area').value    = p.min_area;
+  document.getElementById('val-min-area').textContent = p.min_area;
+  document.getElementById('max-area').value    = p.max_area;
+  document.getElementById('val-max-area').textContent = p.max_area;
+
+  alert(`✅ Best parameters applied!\n\nAverage error: ${data.mae} worms/image  (${data.n_images} images used)\n\nThreshold: ${p.threshold}   Min Area: ${p.min_area}   Max Area: ${p.max_area}\n\nPress D or click ⚡ Auto Detect to re-run detection with the new settings.`);
+}
+
+// ─── Export YOLO annotations ──────────────────────────────────────────────────
+async function exportYOLO() {
+  const results = Object.values(state.savedResults);
+  if (results.length === 0) {
+    alert('No saved results yet.\nCorrect and save at least one image first.');
+    return;
+  }
+  showLoading(true);
+  const resp = await fetch('/api/export/yolo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results })
+  });
+  showLoading(false);
+  if (!resp.ok) { const d = await resp.json(); alert('Export error: ' + d.error); return; }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'worm_annotations_yolo.zip'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+async function exportCSV() {
+  const results = Object.values(state.savedResults);
+  if (results.length === 0) { alert('No saved results to export. Save at least one result first.'); return; }
+
+  showLoading(true);
+  try {
+    const resp = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results })
+    });
+    if (!resp.ok) {
+      const d = await resp.json().catch(() => ({}));
+      alert('Export error: ' + (d.error || resp.statusText));
+      return;
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'worm_counts.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Export failed: ' + err.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function showLoading(show) {
+  document.getElementById('loading').style.display = show ? 'block' : 'none';
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'a' || e.key === 'A') setMode('add');
+  if (e.key === 'r' || e.key === 'R') setMode('remove');
+  if (e.key === 'e' || e.key === 'E') setMode('remove-area');
+  if (e.key === 'w' || e.key === 'W') setMode('detect-area');
+  if (e.key === 'v' || e.key === 'V') setMode('view');
+  if (e.key === 'o' || e.key === 'O') setMode('roi');
+  if (e.key === 'd' || e.key === 'D') runDetection();
+  if (e.key === 'h' || e.key === 'H') toggleMarkers();
+  if (e.key === 'g' || e.key === 'G') toggleGrid();
+  if (e.key === 'c' || e.key === 'C') setMode('grid-mark');
+  if (e.key === 'i' || e.key === 'I') saveImageWithMarks();
+  if (e.key === 's' || e.key === 'S') saveCurrentResult();
+  if (e.key === 'Escape') { setMode('view'); closeHelp(); }
+  // Arrow keys to navigate images
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navigateImage(1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') navigateImage(-1);
+  if (e.key === '?') showHelp();
+});
+
+// Start
+init();
+</script>
+</body>
+</html>

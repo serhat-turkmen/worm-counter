@@ -1,0 +1,52 @@
+# Sample/data images — do not commit large TIF files to the repo
+*.tif
+*.tiff
+*.TIF
+*.TIFF
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# PyInstaller output
+dist/
+build/
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code internal
+.claude/
