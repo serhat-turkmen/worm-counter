@@ -269,11 +269,10 @@ def hit_test(x_orig: int, y_orig: int, radius: int = 18) -> int:
 
 
 def load_image(name: str):
-    """Load image into session state, run detection if no saved result."""
+    """Load image into session state. Detection is NOT run automatically — user triggers it."""
     fb = ss.file_data[name]
     gray = bytes_to_gray(fb)
     ss.orig_h, ss.orig_w = gray.shape
-    ss.plate = dict(zip(("cx", "cy", "cr"), auto_detect_plate(gray)))
     ss.current_name = name
     ss.notes = ""
     ss.last_click = None
@@ -283,13 +282,14 @@ def load_image(name: str):
         r = ss.saved_results[name]
         ss.worms = [dict(w) for w in r["worms"]]
         ss.auto_count = r["auto_count"]
+        ss.plate = dict(r.get("plate", {"cx": ss.orig_w // 2, "cy": ss.orig_h // 2, "cr": int(min(ss.orig_w, ss.orig_h) * 0.48)}))
         if "params" in r:
             ss.params = dict(r["params"])
     else:
-        ss.worms = detect_worms(
-            gray, ss.plate["cx"], ss.plate["cy"], ss.plate["cr"], ss.params
-        )
-        ss.auto_count = len(ss.worms)
+        # Just set a default plate ROI — user can run Auto Detect when ready
+        ss.plate = {"cx": ss.orig_w // 2, "cy": ss.orig_h // 2, "cr": int(min(ss.orig_w, ss.orig_h) * 0.48)}
+        ss.worms = []
+        ss.auto_count = 0
 
 
 def save_result():
@@ -302,6 +302,7 @@ def save_result():
         "notes":           ss.notes,
         "worms":           [dict(w) for w in ss.worms],
         "params":          dict(ss.params),
+        "plate":           dict(ss.plate),
     }
 
 
@@ -435,8 +436,10 @@ with st.sidebar:
 
     if st.button("⚡ Auto Detect", use_container_width=True, type="primary"):
         if ss.current_name:
-            with st.spinner("Detecting…"):
+            with st.spinner("Finding plate…"):
                 gray = bytes_to_gray(ss.file_data[ss.current_name])
+                ss.plate = dict(zip(("cx", "cy", "cr"), auto_detect_plate(gray)))
+            with st.spinner("Detecting worms…"):
                 ss.worms = detect_worms(
                     gray, ss.plate["cx"], ss.plate["cy"], ss.plate["cr"], ss.params
                 )
@@ -583,6 +586,10 @@ if not ss.current_name:
             )
 
     st.stop()
+
+# ── Hint when image loaded but not yet detected ───────────────────────────────
+if ss.current_name and ss.auto_count == 0 and not ss.worms:
+    st.info("Image loaded. Click **⚡ Auto Detect** in the sidebar to find worms, or click the image to add markers manually.", icon="💡")
 
 # ── Count badge + mode selector ──────────────────────────────────────────────
 n_total  = len(ss.worms)
