@@ -106,6 +106,9 @@ _DEFAULTS = {
     "notes": "",
     "last_click": None,
     "show_markers": True,
+    "show_grid":    False,
+    "grid_size":    5,
+    "marked_cells": set(),
     "params": {
         "blur_kernel": 51,
         "threshold":   15,
@@ -224,7 +227,9 @@ def _dashed_circle(draw: ImageDraw.ImageDraw, cx, cy, r, color, width=2, dash=14
 
 
 def render_image(file_bytes: bytes, worms: list, plate: dict, params: dict,
-                 show_markers: bool = True) -> tuple:
+                 show_markers: bool = True,
+                 show_grid: bool = False, grid_size: int = 5,
+                 marked_cells: set = None) -> tuple:
     """Return (PIL Image at display size, scale factor)."""
     pil = bytes_to_pil(file_bytes)
     orig_w, orig_h = pil.size
@@ -233,6 +238,30 @@ def render_image(file_bytes: bytes, worms: list, plate: dict, params: dict,
     disp_w = max(1, int(orig_w * scale))
     disp_h = max(1, int(orig_h * scale))
     pil = pil.resize((disp_w, disp_h), Image.LANCZOS)
+
+    # Grid overlay (drawn before worm markers so markers appear on top)
+    if show_grid and grid_size >= 2:
+        marked_cells = marked_cells or set()
+        cell_w = disp_w / grid_size
+        cell_h = disp_h / grid_size
+
+        # Shade marked cells with semi-transparent green
+        if marked_cells:
+            overlay = Image.new("RGBA", (disp_w, disp_h), (0, 0, 0, 0))
+            ov_draw = ImageDraw.Draw(overlay)
+            for (gc, gr) in marked_cells:
+                x0, y0 = int(gc * cell_w), int(gr * cell_h)
+                x1, y1 = int((gc + 1) * cell_w), int((gr + 1) * cell_h)
+                ov_draw.rectangle([x0, y0, x1, y1], fill=(62, 170, 30, 70))
+            pil = Image.alpha_composite(pil.convert("RGBA"), overlay).convert("RGB")
+
+        draw = ImageDraw.Draw(pil)
+        for i in range(1, grid_size):
+            x = int(i * cell_w)
+            draw.line([(x, 0), (x, disp_h)], fill=(200, 200, 200), width=1)
+        for j in range(1, grid_size):
+            y = int(j * cell_h)
+            draw.line([(0, y), (disp_w, y)], fill=(200, 200, 200), width=1)
 
     draw = ImageDraw.Draw(pil)
     cx  = int(plate["cx"] * scale)
@@ -277,6 +306,7 @@ def load_image(name: str):
     ss.notes = ""
     ss.last_click = None
     ss.mode = "view"
+    ss.marked_cells = set()
 
     if name in ss.saved_results:
         r = ss.saved_results[name]
@@ -486,6 +516,23 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Grid ─────────────────────────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Grid</div>', unsafe_allow_html=True)
+    g1, g2 = st.columns(2)
+    with g1:
+        ss.show_grid = st.toggle("Show grid", value=ss.show_grid)
+    with g2:
+        if ss.marked_cells:
+            if st.button("Clear marks", use_container_width=True):
+                ss.marked_cells = set()
+                st.rerun()
+    if ss.show_grid:
+        ss.grid_size = st.slider("Grid size", 2, 12, int(ss.grid_size),
+                                 help="Number of rows and columns")
+        st.caption(f"{ss.grid_size}×{ss.grid_size} grid · {len(ss.marked_cells)} cell(s) marked")
+
+    st.divider()
+
     # ── Improve / Tune ───────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Improve Detection</div>', unsafe_allow_html=True)
     if st.button("🔧 Tune Parameters", use_container_width=True,
@@ -612,7 +659,7 @@ with col_badge:
     )
 
 with col_modes:
-    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
+    m1, m2, m3, m4, m5, m6, m7, m8, m9 = st.columns(9)
     with m1:
         if st.button("👁 View", use_container_width=True,
                      type="primary" if ss.mode == "view" else "secondary"):
@@ -630,23 +677,34 @@ with col_modes:
                      help="Remove all worm markers"):
             ss.worms = []; st.rerun()
     with m5:
-        # Prev / Next navigation
+        _grid_label = "⊞ Grid ✓" if ss.show_grid else "⊞ Grid"
+        if st.button(_grid_label, use_container_width=True,
+                     type="primary" if ss.show_grid else "secondary"):
+            ss.show_grid = not ss.show_grid; st.rerun()
+    with m6:
+        if st.button("☑ Mark", use_container_width=True,
+                     type="primary" if ss.mode == "grid-mark" else "secondary",
+                     help="Click a grid cell to mark it as counted",
+                     disabled=not ss.show_grid):
+            ss.mode = "grid-mark"; st.rerun()
+    with m7:
         idx = (ss.file_names.index(ss.current_name)
                if ss.current_name in ss.file_names else 0)
         if st.button("◀ Prev", use_container_width=True, disabled=idx == 0):
             load_image(ss.file_names[idx - 1]); st.rerun()
-    with m6:
+    with m8:
         if st.button("Next ▶", use_container_width=True,
                      disabled=idx >= len(ss.file_names) - 1):
             load_image(ss.file_names[idx + 1]); st.rerun()
-    with m7:
+    with m9:
         st.caption(f"{idx + 1} / {len(ss.file_names)}")
 
 # Mode hint
 _hints = {
-    "view":   ("👁 View mode — click to add worms",          "mode-view"),
-    "add":    ("＋ Add mode — click on image to place a worm", "mode-add"),
-    "remove": ("✕ Remove mode — click near a marker to delete","mode-remove"),
+    "view":      ("👁 View mode — click to add worms",              "mode-view"),
+    "add":       ("＋ Add mode — click on image to place a worm",   "mode-add"),
+    "remove":    ("✕ Remove mode — click near a marker to delete",  "mode-remove"),
+    "grid-mark": ("☑ Mark Cell mode — click a grid cell to toggle it as counted", "mode-add"),
 }
 _hint_text, _hint_cls = _hints.get(ss.mode, ("", "mode-view"))
 st.markdown(
@@ -659,6 +717,9 @@ rendered_pil, disp_scale = render_image(
     ss.file_data[ss.current_name],
     ss.worms, ss.plate, ss.params,
     show_markers=ss.show_markers,
+    show_grid=ss.show_grid,
+    grid_size=ss.grid_size,
+    marked_cells=ss.marked_cells,
 )
 ss.disp_scale = disp_scale
 
@@ -683,6 +744,16 @@ try:
             hit = hit_test(x_orig, y_orig, radius=round(20 / disp_scale))
             if hit >= 0:
                 ss.worms.pop(hit)
+        elif ss.mode == "grid-mark" and ss.show_grid:
+            gc = int(x_orig / (ss.orig_w / ss.grid_size))
+            gr = int(y_orig / (ss.orig_h / ss.grid_size))
+            cell = (gc, gr)
+            marked = set(ss.marked_cells)
+            if cell in marked:
+                marked.discard(cell)
+            else:
+                marked.add(cell)
+            ss.marked_cells = marked
         st.rerun()
 
 except ImportError:
