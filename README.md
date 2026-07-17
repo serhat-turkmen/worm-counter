@@ -138,7 +138,7 @@ Worm Counter App_V1/
 
 **Developer:** Serhat Turkmen, PhD
 **Lab:** Sun Lab · PI: Dr. HaoSheng Sun
-**Institution:** University of Alabama at Birmingham (UAB)
+**Institution:** University of Alabama at Birmingham (UAB) · HHMI
 
 This tool was developed to support high-throughput *C. elegans* lifespan and fatty acid experiments in the Sun Lab.
 
@@ -146,4 +146,4 @@ This tool was developed to support high-throughput *C. elegans* lifespan and fat
 
 If you use this tool in a publication, please cite or acknowledge:
 
-> Turkmen S, Sun Lab (PI: Dr. HaoSheng Sun). *Worm Counter* — automated *C. elegans* detection and counting tool. University of Alabama at Birmingham, 2025. https://github.com/serhat-turkmen/worm-counter
+> Turkmen S, Sun Lab (PI: Dr. HaoSheng Sun). *Worm Counter* — automated *C. elegans* detection and counting tool. University of Alabama at Birmingham / HHMI, 2025. https://github.com/serhat-turkmen/worm-counter

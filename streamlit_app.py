@@ -369,7 +369,7 @@ with st.sidebar:
       <p style="margin-top:6px;font-size:0.72rem;opacity:0.8">
         Developed by <b>Serhat Turkmen, PhD</b><br>
         Sun Lab · PI: Dr. HaoSheng Sun<br>
-        University of Alabama at Birmingham
+        University of Alabama at Birmingham · HHMI
       </p>
     </div>
     """, unsafe_allow_html=True)
@@ -686,7 +686,7 @@ st.markdown(
     <div style="text-align:center;color:#9CA3AF;font-size:0.75rem;padding:4px 0 12px">
       Developed by <b>Serhat Turkmen, PhD</b> ·
       <b>Sun Lab</b> (PI: Dr. HaoSheng Sun) ·
-      University of Alabama at Birmingham
+      University of Alabama at Birmingham · HHMI
     </div>
     """,
     unsafe_allow_html=True,
