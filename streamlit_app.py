@@ -408,7 +408,7 @@ with st.sidebar:
                     load_image(name)
                     st.rerun()
     else:
-        st.info("Upload microscopy images above to begin.")
+        st.info("Upload images above to begin.")
 
     st.divider()
 
@@ -548,17 +548,40 @@ if not ss.current_name and ss.file_names:
 
 if not ss.current_name:
     st.markdown("""
-    <div style="text-align:center;padding:90px 40px;color:#6B7280">
-      <div style="font-size:4rem;margin-bottom:16px">🔬</div>
-      <h2 style="color:#0E5881;font-weight:700;margin-bottom:8px">Worm Counter</h2>
-      <p style="max-width:420px;margin:0 auto;line-height:1.7">
-        Upload TIF or PNG microscopy images in the sidebar.<br>
-        Detection runs automatically on each new image.<br><br>
-        <b>Add mode:</b> click to place a worm marker<br>
+    <div style="text-align:center;padding:40px 40px 20px;color:#6B7280">
+      <div style="font-size:3.5rem;margin-bottom:12px">🔬</div>
+      <h2 style="color:#0E5881;font-weight:700;margin-bottom:6px">Worm Counter</h2>
+      <p style="max-width:500px;margin:0 auto 20px;line-height:1.7">
+        Upload worm images (TIF, PNG, JPG) in the sidebar to get started.<br>
+        Detection runs automatically. Correct counts by clicking on the image.<br><br>
+        <b>Add mode:</b> click anywhere to place a worm marker<br>
         <b>Remove mode:</b> click near a marker to delete it
       </p>
     </div>
     """, unsafe_allow_html=True)
+
+    # Show sample image with auto-detection preview
+    import os as _os
+    _sample_path = _os.path.join(_os.path.dirname(__file__), "sample_images", "sample_worm_plate.jpg")
+    if _os.path.exists(_sample_path):
+        with open(_sample_path, "rb") as _f:
+            _sample_bytes = _f.read()
+        _gray_s = bytes_to_gray(_sample_bytes)
+        _cx_s, _cy_s, _cr_s = auto_detect_plate(_gray_s)
+        _worms_s = detect_worms(_gray_s, _cx_s, _cy_s, _cr_s, ss.params)
+        _rendered_s, _ = render_image(
+            _sample_bytes, _worms_s,
+            {"cx": _cx_s, "cy": _cy_s, "cr": _cr_s},
+            ss.params, show_markers=True,
+        )
+        _, _sc1, _sc2, _sc3 = st.columns([1, 3, 3, 1])
+        with _sc2:
+            st.image(
+                _rendered_s,
+                caption=f"Sample: C. elegans plate — {len(_worms_s)} worms auto-detected (red crosshairs)",
+                use_container_width=True,
+            )
+
     st.stop()
 
 # ── Count badge + mode selector ──────────────────────────────────────────────
