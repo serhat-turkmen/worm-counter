@@ -15,6 +15,7 @@ Nature color palette (CMYK → RGB):
 import io
 import csv
 import math
+import base64
 
 import cv2
 import numpy as np
@@ -107,6 +108,7 @@ _DEFAULTS = {
     "notes": "",
     "last_click": None,
     "show_markers": True,
+    "zoom_pct":     100,
     "show_grid":    False,
     "grid_size":    5,
     "marked_cells": set(),
@@ -230,12 +232,14 @@ def _dashed_circle(draw: ImageDraw.ImageDraw, cx, cy, r, color, width=2, dash=14
 def render_image(file_bytes: bytes, worms: list, plate: dict, params: dict,
                  show_markers: bool = True,
                  show_grid: bool = False, grid_size: int = 5,
-                 marked_cells: set = None) -> tuple:
+                 marked_cells: set = None,
+                 zoom_pct: int = 100) -> tuple:
     """Return (PIL Image at display size, scale factor)."""
     pil = bytes_to_pil(file_bytes)
     orig_w, orig_h = pil.size
 
-    scale = min(DISPLAY_MAX / orig_w, DISPLAY_MAX / orig_h, 1.0)
+    max_dim = int(DISPLAY_MAX * zoom_pct / 100)
+    scale = min(max_dim / orig_w, max_dim / orig_h)
     disp_w = max(1, int(orig_w * scale))
     disp_h = max(1, int(orig_h * scale))
     pil = pil.resize((disp_w, disp_h), Image.LANCZOS)
@@ -517,6 +521,21 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Zoom ─────────────────────────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Zoom</div>', unsafe_allow_html=True)
+    z1, z2 = st.columns([4, 1])
+    with z1:
+        ss.zoom_pct = st.slider("Zoom", 25, 300, int(ss.zoom_pct), step=25,
+                                label_visibility="collapsed")
+    with z2:
+        st.markdown(f"<div style='padding-top:8px;font-size:0.85rem'>{ss.zoom_pct}%</div>",
+                    unsafe_allow_html=True)
+        if ss.zoom_pct != 100:
+            if st.button("↺", help="Reset zoom to 100%"):
+                ss.zoom_pct = 100; st.rerun()
+
+    st.divider()
+
     # ── Grid ─────────────────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Grid</div>', unsafe_allow_html=True)
     g1, g2 = st.columns(2)
@@ -642,7 +661,7 @@ if not ss.current_name:
         _rendered_s, _ = render_image(
             _sample_bytes, _worms_s,
             {"cx": _cx_s, "cy": _cy_s, "cr": _cr_s},
-            ss.params, show_markers=True,
+            ss.params, show_markers=True, zoom_pct=100,
         )
         _, _sc1, _sc2, _sc3 = st.columns([1, 3, 3, 1])
         with _sc2:
@@ -788,6 +807,7 @@ rendered_pil, disp_scale = render_image(
     show_grid=ss.show_grid,
     grid_size=ss.grid_size,
     marked_cells=ss.marked_cells,
+    zoom_pct=ss.zoom_pct,
 )
 ss.disp_scale = disp_scale
 
@@ -839,15 +859,38 @@ st.caption(
     f"📄 **{ss.current_name}** · {ss.orig_w}×{ss.orig_h} px · {save_status}"
 )
 
-# ── Download annotated image ──────────────────────────────────────────────────
+# ── Download / open annotated image ──────────────────────────────────────────
 img_buf = io.BytesIO()
 rendered_pil.save(img_buf, format="PNG")
-st.download_button(
-    "🖼 Download image with markers",
-    data=img_buf.getvalue(),
-    file_name=ss.current_name.rsplit(".", 1)[0] + "_counted.png",
-    mime="image/png",
-)
+img_bytes = img_buf.getvalue()
+
+dl_col, open_col = st.columns(2)
+with dl_col:
+    st.download_button(
+        "🖼 Download image with markers",
+        data=img_bytes,
+        file_name=ss.current_name.rsplit(".", 1)[0] + "_counted.png",
+        mime="image/png",
+        use_container_width=True,
+    )
+with open_col:
+    _b64 = base64.b64encode(img_bytes).decode()
+    _components.html(
+        f"""<script>
+        function openFull() {{
+            var win = window.open('', '_blank');
+            win.document.write('<img src="data:image/png;base64,{_b64}"'
+                + ' style="max-width:100%;height:auto">');
+        }}
+        </script>
+        <button onclick="openFull()" style="
+            width:100%; padding:6px 12px; cursor:pointer;
+            background:#0092EB; color:white; border:none; border-radius:6px;
+            font-size:0.85rem; font-family:sans-serif;">
+            🔍 Open full-res in new tab
+        </button>""",
+        height=40,
+    )
 
 st.markdown("---")
 st.markdown(
