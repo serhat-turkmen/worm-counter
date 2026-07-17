@@ -112,6 +112,8 @@ _DEFAULTS = {
     "show_grid":    False,
     "grid_size":    5,
     "marked_cells": set(),
+    "zoomed_cell":  None,   # (gc, gr) when zoomed into a cell, else None
+    "cell_offset":  (0, 0), # (x0, y0) in original pixels of the zoomed cell
     "params": {
         "blur_kernel": 51,
         "threshold":   15,
@@ -233,24 +235,39 @@ def render_image(file_bytes: bytes, worms: list, plate: dict, params: dict,
                  show_markers: bool = True,
                  show_grid: bool = False, grid_size: int = 5,
                  marked_cells: set = None,
-                 zoom_pct: int = 100) -> tuple:
+                 zoom_pct: int = 100,
+                 zoomed_cell: tuple = None) -> tuple:
     """Return (PIL Image at display size, scale factor)."""
     pil = bytes_to_pil(file_bytes)
     orig_w, orig_h = pil.size
 
-    max_dim = int(DISPLAY_MAX * zoom_pct / 100)
+    # ── Cell zoom: crop to just the clicked cell ──────────────────────────────
+    cell_x0, cell_y0 = 0, 0
+    if zoomed_cell is not None and grid_size >= 2:
+        gc, gr = zoomed_cell
+        cw = orig_w / grid_size
+        ch = orig_h / grid_size
+        cell_x0 = int(gc * cw)
+        cell_y0 = int(gr * ch)
+        cell_x1 = min(orig_w, int((gc + 1) * cw))
+        cell_y1 = min(orig_h, int((gr + 1) * ch))
+        pil = pil.crop((cell_x0, cell_y0, cell_x1, cell_y1))
+        orig_w, orig_h = pil.size
+
+    # When zoomed into a cell ignore the zoom slider (fill the display)
+    effective_zoom = zoom_pct if zoomed_cell is None else 100
+    max_dim = int(DISPLAY_MAX * effective_zoom / 100)
     scale = min(max_dim / orig_w, max_dim / orig_h)
     disp_w = max(1, int(orig_w * scale))
     disp_h = max(1, int(orig_h * scale))
     pil = pil.resize((disp_w, disp_h), Image.LANCZOS)
 
-    # Grid overlay (drawn before worm markers so markers appear on top)
-    if show_grid and grid_size >= 2:
+    # ── Grid overlay (only when not zoomed into a cell) ───────────────────────
+    if show_grid and grid_size >= 2 and zoomed_cell is None:
         marked_cells = marked_cells or set()
         cell_w = disp_w / grid_size
         cell_h = disp_h / grid_size
 
-        # Shade marked cells with semi-transparent green
         if marked_cells:
             overlay = Image.new("RGBA", (disp_w, disp_h), (0, 0, 0, 0))
             ov_draw = ImageDraw.Draw(overlay)
@@ -269,26 +286,25 @@ def render_image(file_bytes: bytes, worms: list, plate: dict, params: dict,
             draw.line([(0, y), (disp_w, y)], fill=(200, 200, 200), width=1)
 
     draw = ImageDraw.Draw(pil)
-    cx  = int(plate["cx"] * scale)
-    cy  = int(plate["cy"] * scale)
+    cx  = int((plate["cx"] - cell_x0) * scale)
+    cy  = int((plate["cy"] - cell_y0) * scale)
     cr  = int(plate["cr"] * scale)
     roi_r = max(1, int(cr * params["roi_scale"]))
 
-    # Plate circle (dim blue)
     draw.ellipse([cx - cr, cy - cr, cx + cr, cy + cr],
                  outline=(100, 150, 220), width=1)
-    # ROI circle (dashed green)
     _dashed_circle(draw, cx, cy, roi_r, color=(0, 180, 80), width=2)
 
     if show_markers:
         arm = max(5, int(9 * scale))
         for w in worms:
-            wx = int(w["x_orig"] * scale)
-            wy = int(w["y_orig"] * scale)
-            col = (241, 180, 20) if w.get("manual") else (220, 50, 50)
-            draw.line([(wx - arm, wy), (wx + arm, wy)], fill=col, width=2)
-            draw.line([(wx, wy - arm), (wx, wy + arm)], fill=col, width=2)
-            draw.ellipse([wx - 2, wy - 2, wx + 2, wy + 2], fill=col)
+            wx = int((w["x_orig"] - cell_x0) * scale)
+            wy = int((w["y_orig"] - cell_y0) * scale)
+            if -arm <= wx <= disp_w + arm and -arm <= wy <= disp_h + arm:
+                col = (241, 180, 20) if w.get("manual") else (220, 50, 50)
+                draw.line([(wx - arm, wy), (wx + arm, wy)], fill=col, width=2)
+                draw.line([(wx, wy - arm), (wx, wy + arm)], fill=col, width=2)
+                draw.ellipse([wx - 2, wy - 2, wx + 2, wy + 2], fill=col)
 
     return pil, scale
 
@@ -312,6 +328,8 @@ def load_image(name: str):
     ss.last_click = None
     ss.mode = "view"
     ss.marked_cells = set()
+    ss.zoomed_cell = None
+    ss.cell_offset = (0, 0)
 
     if name in ss.saved_results:
         r = ss.saved_results[name]
@@ -550,6 +568,16 @@ with st.sidebar:
         ss.grid_size = st.slider("Grid size", 2, 12, int(ss.grid_size),
                                  help="Number of rows and columns")
         st.caption(f"{ss.grid_size}×{ss.grid_size} grid · {len(ss.marked_cells)} cell(s) marked")
+        gz1, gz2 = st.columns(2)
+        with gz1:
+            if st.button("🔍 Zoom Cell", use_container_width=True,
+                         type="primary" if ss.mode == "zoom-cell" else "secondary",
+                         help="Click a grid cell to zoom into it"):
+                ss.mode = "zoom-cell"; st.rerun()
+        with gz2:
+            if ss.zoomed_cell is not None:
+                if st.button("↩ Full view", use_container_width=True):
+                    ss.zoomed_cell = None; ss.cell_offset = (0, 0); st.rerun()
 
     st.divider()
 
@@ -673,6 +701,16 @@ if not ss.current_name:
 
     st.stop()
 
+# ── Cell zoom banner ─────────────────────────────────────────────────────────
+if ss.zoomed_cell is not None:
+    gc, gr = ss.zoomed_cell
+    _zc1, _zc2 = st.columns([5, 1])
+    with _zc1:
+        st.info(f"🔍 Zoomed into cell ({gc + 1}, {gr + 1}) of {ss.grid_size}×{ss.grid_size} grid — Add/Remove work here normally.", icon=None)
+    with _zc2:
+        if st.button("↩ Full view", use_container_width=True, type="primary"):
+            ss.zoomed_cell = None; ss.cell_offset = (0, 0); st.rerun()
+
 # ── Hint when image loaded but not yet detected ───────────────────────────────
 if ss.current_name and ss.auto_count == 0 and not ss.worms:
     st.info("Image loaded. Click **⚡ Auto Detect** in the sidebar to find worms, or click the image to add markers manually.", icon="💡")
@@ -719,13 +757,19 @@ with col_modes:
         _grid_label = "⊞ Grid ✓" if ss.show_grid else "⊞ Grid"
         if st.button(_grid_label, use_container_width=True,
                      type="primary" if ss.show_grid else "secondary"):
-            ss.show_grid = not ss.show_grid; st.rerun()
+            ss.show_grid = not ss.show_grid
+            ss.zoomed_cell = None
+            st.rerun()
     with m6:
-        if st.button("☑ Mark", use_container_width=True,
-                     type="primary" if ss.mode == "grid-mark" else "secondary",
-                     help="Click a grid cell to mark it as counted",
-                     disabled=not ss.show_grid):
-            ss.mode = "grid-mark"; st.rerun()
+        if ss.zoomed_cell is not None:
+            if st.button("↩ Full", use_container_width=True, type="primary"):
+                ss.zoomed_cell = None; ss.cell_offset = (0, 0); st.rerun()
+        else:
+            if st.button("☑ Mark", use_container_width=True,
+                         type="primary" if ss.mode == "grid-mark" else "secondary",
+                         help="Click a grid cell to mark it as counted",
+                         disabled=not ss.show_grid):
+                ss.mode = "grid-mark"; st.rerun()
     with m7:
         idx = (ss.file_names.index(ss.current_name)
                if ss.current_name in ss.file_names else 0)
@@ -743,7 +787,8 @@ _hints = {
     "view":      ("👁 View mode — click to add worms",              "mode-view"),
     "add":       ("＋ Add mode — click on image to place a worm",   "mode-add"),
     "remove":    ("✕ Remove mode — click near a marker to delete",  "mode-remove"),
-    "grid-mark": ("☑ Mark Cell mode — click a grid cell to toggle it as counted", "mode-add"),
+    "grid-mark": ("☑ Mark Cell — click a cell to toggle it as counted", "mode-add"),
+    "zoom-cell": ("🔍 Zoom Cell — click a grid cell to zoom into it",   "mode-view"),
 }
 _hint_text, _hint_cls = _hints.get(ss.mode, ("", "mode-view"))
 st.markdown(
@@ -800,6 +845,16 @@ _components.html("""
 """, height=0)
 
 # ── Render image with overlays ───────────────────────────────────────────────
+# Compute cell offset for click coordinate translation
+if ss.zoomed_cell is not None and ss.show_grid and ss.grid_size >= 2:
+    gc, gr = ss.zoomed_cell
+    ss.cell_offset = (
+        int(gc * ss.orig_w / ss.grid_size),
+        int(gr * ss.orig_h / ss.grid_size),
+    )
+else:
+    ss.cell_offset = (0, 0)
+
 rendered_pil, disp_scale = render_image(
     ss.file_data[ss.current_name],
     ss.worms, ss.plate, ss.params,
@@ -808,6 +863,7 @@ rendered_pil, disp_scale = render_image(
     grid_size=ss.grid_size,
     marked_cells=ss.marked_cells,
     zoom_pct=ss.zoom_pct,
+    zoomed_cell=ss.zoomed_cell,
 )
 ss.disp_scale = disp_scale
 
@@ -822,8 +878,10 @@ try:
 
     if click is not None and click != ss.last_click:
         ss.last_click = click
-        x_orig = round(click["x"] / disp_scale)
-        y_orig = round(click["y"] / disp_scale)
+        # Translate display click → original image coordinates
+        ox, oy = ss.cell_offset
+        x_orig = ox + round(click["x"] / disp_scale)
+        y_orig = oy + round(click["y"] / disp_scale)
 
         if ss.mode in ("view", "add"):
             ss.worms.append({"x_orig": x_orig, "y_orig": y_orig,
@@ -837,11 +895,13 @@ try:
             gr = int(y_orig / (ss.orig_h / ss.grid_size))
             cell = (gc, gr)
             marked = set(ss.marked_cells)
-            if cell in marked:
-                marked.discard(cell)
-            else:
-                marked.add(cell)
+            marked.discard(cell) if cell in marked else marked.add(cell)
             ss.marked_cells = marked
+        elif ss.mode == "zoom-cell" and ss.show_grid and ss.zoomed_cell is None:
+            gc = int(x_orig / (ss.orig_w / ss.grid_size))
+            gr = int(y_orig / (ss.orig_h / ss.grid_size))
+            ss.zoomed_cell = (gc, gr)
+            ss.mode = "view"
         st.rerun()
 
 except ImportError:
