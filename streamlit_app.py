@@ -19,6 +19,7 @@ import math
 import cv2
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as _components
 from PIL import Image, ImageDraw
 
 # ─── Page configuration ───────────────────────────────────────────────────────
@@ -557,6 +558,25 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Keyboard shortcuts reference ─────────────────────────────────────────
+    with st.expander("⌨ Keyboard shortcuts"):
+        st.markdown("""
+| Key | Action |
+|-----|--------|
+| `V` | View mode |
+| `A` | Add worm mode |
+| `R` | Remove mode |
+| `G` | Toggle grid |
+| `C` | Mark cell mode |
+| `D` | Auto Detect |
+| `S` | Save result |
+| `H` | Toggle markers |
+| `← ↑` | Previous image |
+| `→ ↓` | Next image |
+""")
+
+    st.divider()
+
     # ── Export ───────────────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Export</div>', unsafe_allow_html=True)
     if ss.saved_results:
@@ -711,6 +731,54 @@ st.markdown(
     f'<span class="mode-pill {_hint_cls}">{_hint_text}</span>',
     unsafe_allow_html=True,
 )
+
+# ── Keyboard shortcuts (JS injected once per render) ─────────────────────────
+_components.html("""
+<script>
+(function() {
+    var p = window.parent;
+    if (p._wcShortcutsReady) return;
+    p._wcShortcutsReady = true;
+
+    function clickBtn(needle) {
+        var btns = p.document.querySelectorAll('button');
+        for (var i = 0; i < btns.length; i++) {
+            var b = btns[i];
+            if (!b.disabled && b.innerText && b.innerText.includes(needle)) {
+                b.click(); return;
+            }
+        }
+    }
+
+    function clickToggleByLabel(text) {
+        var labels = p.document.querySelectorAll('label');
+        for (var i = 0; i < labels.length; i++) {
+            if (labels[i].innerText && labels[i].innerText.trim() === text) {
+                labels[i].click(); return;
+            }
+        }
+    }
+
+    p.document.addEventListener('keydown', function(e) {
+        var ae = p.document.activeElement;
+        if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        switch (e.key) {
+            case 'v': case 'V': clickBtn('View'); break;
+            case 'a': case 'A': clickBtn('Add'); break;
+            case 'r': case 'R': clickBtn('Remove'); e.preventDefault(); break;
+            case 'g': case 'G': clickBtn('Grid'); break;
+            case 'c': case 'C': clickBtn('Mark'); break;
+            case 'd': case 'D': clickBtn('Auto Detect'); break;
+            case 's': case 'S': clickBtn('Save Result'); break;
+            case 'h': case 'H': clickToggleByLabel('Show marks'); break;
+            case 'ArrowLeft': case 'ArrowUp': clickBtn('Prev'); e.preventDefault(); break;
+            case 'ArrowRight': case 'ArrowDown': clickBtn('Next'); e.preventDefault(); break;
+        }
+    }, false);
+})();
+</script>
+""", height=0)
 
 # ── Render image with overlays ───────────────────────────────────────────────
 rendered_pil, disp_scale = render_image(
