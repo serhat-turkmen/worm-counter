@@ -2,6 +2,10 @@
 Worm Counter — Streamlit web app for C. elegans counting in microscopy images.
 Designed to run on Streamlit Community Cloud (free, public URL).
 
+Developed by Serhat Turkmen, PhD
+Sun Lab · PI: Dr. HaoSheng Sun
+University of Alabama at Birmingham (UAB)
+
 Nature color palette (CMYK → RGB):
   True Blue  #0092EB   Cyan       #29A3CC
   Dark Blue  #0E5881   Red        #D90200
@@ -361,7 +365,12 @@ with st.sidebar:
     st.markdown("""
     <div class="nat-header">
       <h1>🔬 Worm Counter</h1>
-      <p><em>C. elegans</em> automated detection · Sun Lab, UAB</p>
+      <p><em>C. elegans</em> automated detection</p>
+      <p style="margin-top:6px;font-size:0.72rem;opacity:0.8">
+        Developed by <b>Serhat Turkmen, PhD</b><br>
+        Sun Lab · PI: Dr. HaoSheng Sun<br>
+        University of Alabama at Birmingham
+      </p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -669,4 +678,16 @@ st.download_button(
     data=img_buf.getvalue(),
     file_name=ss.current_name.rsplit(".", 1)[0] + "_counted.png",
     mime="image/png",
+)
+
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align:center;color:#9CA3AF;font-size:0.75rem;padding:4px 0 12px">
+      Developed by <b>Serhat Turkmen, PhD</b> ·
+      <b>Sun Lab</b> (PI: Dr. HaoSheng Sun) ·
+      University of Alabama at Birmingham
+    </div>
+    """,
+    unsafe_allow_html=True,
 )

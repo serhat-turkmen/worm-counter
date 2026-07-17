@@ -134,8 +134,16 @@ Worm Counter App_V1/
 
 ---
 
-## Acknowledgement
+## About
 
-If you use this tool in a publication, please acknowledge:
+**Developer:** Serhat Turkmen, PhD
+**Lab:** Sun Lab · PI: Dr. HaoSheng Sun
+**Institution:** University of Alabama at Birmingham (UAB)
 
-> Worm Counter v1 — automated *C. elegans* detection tool, Sun Lab, University of Alabama at Birmingham.
+This tool was developed to support high-throughput *C. elegans* lifespan and fatty acid experiments in the Sun Lab.
+
+## Citation / Acknowledgement
+
+If you use this tool in a publication, please cite or acknowledge:
+
+> Turkmen S, Sun Lab (PI: Dr. HaoSheng Sun). *Worm Counter* — automated *C. elegans* detection and counting tool. University of Alabama at Birmingham, 2025. https://github.com/serhat-turkmen/worm-counter
